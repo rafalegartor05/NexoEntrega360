@@ -1,0 +1,22 @@
+
+services:
+  postgres:
+    image: postgres:16.10
+    container_name: nexoentrega-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexo
+      POSTGRES_PASSWORD: nexo_dev_password
+      POSTGRES_DB: nexoentrega
+    ports:
+      - "5432:5432"
+    volumes:
+      - nexoentrega_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexo -d nexoentrega"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  nexoentrega_data:

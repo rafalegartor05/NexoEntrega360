@@ -1,0 +1,32 @@
+{
+  "name": "nexoentrega-360",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently -k \"npm run dev -w apps/api\" \"npm run dev -w apps/web\"",
+    "build": "npm run build -w apps/api && npm run build -w apps/web",
+    "test": "npm run test -w apps/api",
+    "db:generate": "npm run db:generate -w apps/api",
+    "db:migrate": "npm run db:migrate -w apps/api",
+    "db:seed": "npm run db:seed -w apps/api"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "concurrently": "^9.2.5"
+  },
+  "dependencies": {
+    "react-router-dom": "7.18.4",
+    "vite": "6.4.4",
+    "vitest": "3.2.7"
+  },
+  "allowScripts": {
+    "@prisma/client@6.16.2": true,
+    "@prisma/engines@6.12.0": true,
+    "esbuild@0.25.12": true,
+    "prisma@6.12.0": true
+  }
+}

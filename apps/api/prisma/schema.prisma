@@ -1,0 +1,183 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SOLICITANTE
+  COORDINADOR
+  BODEGA
+  AUDITOR
+}
+
+enum Priority {
+  NORMAL
+  ALTA
+}
+
+enum RequestStatus {
+  BORRADOR
+  ENVIADA
+  RESERVADA
+  DESPACHADA
+  ENTREGADA
+  CANCELADA
+}
+
+model Organization {
+  id            String       @id @default(uuid()) @db.Uuid
+  name          String
+  code          String       @unique
+  skus          SKU[]
+  inventories   Inventory[]
+  requests      Request[]
+  users         User[]
+  auditEvents   AuditEvent[]
+  aiSummaries   AISummary[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  email          String   @unique
+  passwordHash   String   @map("password_hash")
+  role           Role
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  requests     Request[]    @relation("RequestOwner")
+  auditEvents  AuditEvent[]
+  aiSummaries  AISummary[]  @relation("SummaryCreator")
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+model SKU {
+  id             String       @id @default(uuid()) @db.Uuid
+  code           String       @unique
+  name           String
+  description    String?
+  organizationId String       @map("organization_id") @db.Uuid
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inventories    Inventory[]
+  requestItems   RequestItem[]
+
+  @@map("skus")
+}
+
+model Inventory {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  skuId          String       @map("sku_id") @db.Uuid
+  physicalStock  Int          @default(0) @map("physical_stock")
+  reservedStock  Int          @default(0) @map("reserved_stock")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sku            SKU          @relation(fields: [skuId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, skuId])
+  @@map("inventories")
+}
+
+model Request {
+  id             String        @id @default(uuid()) @db.Uuid
+  code           String        @unique
+  requesterId    String        @map("requester_id") @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  zone           String
+  priority       Priority      @default(NORMAL)
+  requiredDate   DateTime      @map("required_date")
+  observations   String?
+  status         RequestStatus @default(BORRADOR)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  requester    User                @relation("RequestOwner", fields: [requesterId], references: [id])
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  items        RequestItem[]
+  audits       AuditEvent[]
+  idempotency  IdempotencyRecord[]
+  summaries    AISummary[]
+
+  @@index([organizationId, status, priority])
+  @@index([requesterId, createdAt])
+  @@map("requests")
+}
+
+model RequestItem {
+  id        String @id @default(uuid()) @db.Uuid
+  requestId String @map("request_id") @db.Uuid
+  skuId     String @map("sku_id") @db.Uuid
+  quantity  Int
+
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  sku     SKU     @relation(fields: [skuId], references: [id])
+
+  @@map("request_items")
+}
+
+model IdempotencyRecord {
+  id             String       @id @default(uuid()) @db.Uuid
+  key            String
+  organizationId String       @map("organization_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  requestHash    String       @map("request_hash")
+  responseCode   Int          @map("response_code")
+  responseBody   Json         @map("response_body")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  request        Request?     @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  requestId      String?      @map("request_id") @db.Uuid
+
+  @@unique([key, organizationId])
+  @@map("idempotency_records")
+}
+
+model AuditEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  requestId      String?  @map("request_id") @db.Uuid
+  action         String
+  correlationId  String   @map("correlation_id")
+  details        Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  request      Request?     @relation(fields: [requestId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@map("audit_events")
+}
+
+model AISummary {
+  id             String    @id @default(uuid()) @db.Uuid
+  requestId      String?   @map("request_id") @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  creatorId      String    @map("creator_id") @db.Uuid
+  summary        String
+  recommendations Json
+  approvedAt     DateTime? @map("approved_at")
+  approvedById   String?   @map("approved_by_id") @db.Uuid
+  source         String
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  request      Request?     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id])
+  creator      User         @relation("SummaryCreator", fields: [creatorId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@map("ai_summaries")
+}
