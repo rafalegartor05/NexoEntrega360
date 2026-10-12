@@ -8,6 +8,37 @@ import { AppError } from "../../middleware/errors";
 const router = Router();
 router.use(authenticate);
 
+router.get("/", async (req, res, next) => {
+  try {
+    const organizationId = req.user!.organizationId;
+    const inventory = await prisma.inventory.findMany({
+      where: { organizationId },
+      include: { sku: true },
+      orderBy: { sku: { code: "asc" } }
+    });
+
+    const mappedInventory = inventory.map(item => ({
+      id: item.id,
+      skuId: item.skuId,
+      code: item.sku.code,
+      sku: item.sku.code,
+      name: item.sku.name,
+      product: item.sku.name,
+      productName: item.sku.name,
+      quantity: item.quantity,      
+      stock: item.quantity,
+      existencias: item.quantity,         
+      reserved: 0,
+      reservado: 0,                  
+      available: item.quantity      
+    }));
+
+    res.json(mappedInventory);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/skus", async (req, res, next) => {
   try {
     const organizationId = req.user!.organizationId;

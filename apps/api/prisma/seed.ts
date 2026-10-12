@@ -105,7 +105,7 @@ async function main() {
     }
   }
 
-  // --- Solicitud de prueba para Org A ---
+  // --- Solicitud, Auditoría, IA e Idempotencia para Org A ---
   const orgA = organizations[0];
   const solicitanteA = await prisma.user.findFirst({
     where: { organizationId: orgA.id, role: "SOLICITANTE" }
@@ -146,7 +146,53 @@ async function main() {
     }
   }
 
-  // --- Solicitud de prueba para Org B ---
+  const auditorA = await prisma.user.findFirst({
+    where: { organizationId: orgA.id, role: "AUDITOR" }
+  });
+
+  if (auditorA) {
+    await prisma.auditEvent.create({
+      data: {
+        organizationId: orgA.id,
+        userId: auditorA.id,
+        action: "INVENTORY_QUANTITY_UPDATE",
+        correlationId: "c52ef5d5-f5e2-4c3a-94b7-ce0986050fd0",
+        details: { description: "Ajuste inicial de inventario para ORG-A" }
+      }
+    });
+    console.log("Evento de auditoría creado para ORG-A.");
+
+    const coordinadorA = await prisma.user.findFirst({
+      where: { organizationId: orgA.id, role: "COORDINADOR" }
+    });
+
+    if (coordinadorA) {
+      await prisma.aISummary.create({
+        data: {
+          organizationId: orgA.id,
+          creatorId: coordinadorA.id,
+          summary: "El stock actual se encuentra estable, destacando el Kit de alimentos con 100 unidades y sin incidencias pendientes.",
+          recommendations: { action: "Mantener niveles de stock actuales" },
+          source: "SYSTEM_INIT"
+        }
+      });
+
+      await prisma.idempotencyRecord.create({
+        data: {
+          organizationId: orgA.id,
+          userId: coordinadorA.id,
+          key: "req-key-org-a-inventory-12345",
+          requestHash: "hash-sample-org-a-123",
+          responseCode: 200,
+          responseBody: { success: true, message: "Operación procesada correctamente" }
+        }
+      });
+      console.log("AISummary e IdempotencyRecord creados para ORG-A.");
+    }
+  }
+
+
+  // --- Solicitud, Auditoría, IA e Idempotencia para Org B ---
   const orgB = organizations[1];
   const solicitanteB = await prisma.user.findFirst({
     where: { organizationId: orgB.id, role: "SOLICITANTE" }
@@ -187,7 +233,52 @@ async function main() {
     }
   }
 
-  console.log("Seed completado: organizaciones, usuarios, inventario y solicitudes.");
+  const auditorB = await prisma.user.findFirst({
+    where: { organizationId: orgB.id, role: "AUDITOR" }
+  });
+
+  if (auditorB) {
+    await prisma.auditEvent.create({
+      data: {
+        organizationId: orgB.id,
+        userId: auditorB.id,
+        action: "INVENTORY_QUANTITY_UPDATE",
+        correlationId: "d63fg6e6-g6f3-5d4b-85c8-df1097161ge1",
+        details: { description: "Ajuste inicial de inventario para ORG-B" }
+      }
+    });
+    console.log("Evento de auditoría creado para ORG-B.");
+
+    const coordinadorB = await prisma.user.findFirst({
+      where: { organizationId: orgB.id, role: "COORDINADOR" }
+    });
+
+    if (coordinadorB) {
+      await prisma.aISummary.create({
+        data: {
+          organizationId: orgB.id,
+          creatorId: coordinadorB.id,
+          summary: "Inventario operativo inicial registrado correctamente para la sucursal del sur.",
+          recommendations: { action: "Revisar solicitudes pendientes en zona sur" },
+          source: "SYSTEM_INIT"
+        }
+      });
+
+      await prisma.idempotencyRecord.create({
+        data: {
+          organizationId: orgB.id,
+          userId: coordinadorB.id,
+          key: "req-key-org-b-inventory-12345",
+          requestHash: "hash-sample-org-b-123",
+          responseCode: 200,
+          responseBody: { success: true, message: "Operación procesada correctamente" }
+        }
+      });
+      console.log("AISummary e IdempotencyRecord creados para ORG-B.");
+    }
+  }
+
+  console.log("Seed completado: organizaciones, usuarios, inventario, solicitudes, auditoría, IA e idempotencia.");
 }
 
 main()
