@@ -8,12 +8,13 @@ CREATE TYPE "Priority" AS ENUM ('NORMAL', 'ALTA');
 CREATE TYPE "RequestStatus" AS ENUM ('BORRADOR', 'ENVIADA', 'RESERVADA', 'DESPACHADA', 'ENTREGADA', 'CANCELADA');
 
 -- CreateTable
-CREATE TABLE "organizations" (
+CREATE TABLE "Organization" (
     "id" UUID NOT NULL,
     "name" TEXT NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "organizations_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Organization_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -29,27 +30,28 @@ CREATE TABLE "users" (
 );
 
 -- CreateTable
-CREATE TABLE "skus" (
+CREATE TABLE "SKU" (
     "id" UUID NOT NULL,
-    "organization_id" UUID NOT NULL,
     "code" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "active" BOOLEAN NOT NULL DEFAULT true,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "description" TEXT,
+    "organizationId" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "skus_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "SKU_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "inventories" (
+CREATE TABLE "Inventory" (
     "id" UUID NOT NULL,
-    "organization_id" UUID NOT NULL,
-    "sku_id" UUID NOT NULL,
-    "physical_stock" INTEGER NOT NULL DEFAULT 0,
-    "reserved_stock" INTEGER NOT NULL DEFAULT 0,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "skuId" UUID NOT NULL,
+    "quantity" INTEGER NOT NULL,
+    "organizationId" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "inventories_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Inventory_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -125,22 +127,16 @@ CREATE TABLE "ai_summaries" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "organizations_name_key" ON "organizations"("name");
-
--- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
 CREATE INDEX "users_organization_id_idx" ON "users"("organization_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "skus_organization_id_code_key" ON "skus"("organization_id", "code");
+CREATE UNIQUE INDEX "SKU_organizationId_code_key" ON "SKU"("organizationId", "code");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "inventories_sku_id_key" ON "inventories"("sku_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "inventories_organization_id_sku_id_key" ON "inventories"("organization_id", "sku_id");
+CREATE UNIQUE INDEX "Inventory_organizationId_skuId_key" ON "Inventory"("organizationId", "skuId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "requests_code_key" ON "requests"("code");
@@ -161,34 +157,34 @@ CREATE INDEX "audit_events_organization_id_created_at_idx" ON "audit_events"("or
 CREATE INDEX "ai_summaries_organization_id_created_at_idx" ON "ai_summaries"("organization_id", "created_at");
 
 -- AddForeignKey
-ALTER TABLE "users" ADD CONSTRAINT "users_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "users" ADD CONSTRAINT "users_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "skus" ADD CONSTRAINT "skus_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "SKU" ADD CONSTRAINT "SKU_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "inventories" ADD CONSTRAINT "inventories_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Inventory" ADD CONSTRAINT "Inventory_skuId_fkey" FOREIGN KEY ("skuId") REFERENCES "SKU"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "inventories" ADD CONSTRAINT "inventories_sku_id_fkey" FOREIGN KEY ("sku_id") REFERENCES "skus"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Inventory" ADD CONSTRAINT "Inventory_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "requests" ADD CONSTRAINT "requests_requester_id_fkey" FOREIGN KEY ("requester_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "requests" ADD CONSTRAINT "requests_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "requests" ADD CONSTRAINT "requests_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "request_items" ADD CONSTRAINT "request_items_request_id_fkey" FOREIGN KEY ("request_id") REFERENCES "requests"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "request_items" ADD CONSTRAINT "request_items_sku_id_fkey" FOREIGN KEY ("sku_id") REFERENCES "skus"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "request_items" ADD CONSTRAINT "request_items_sku_id_fkey" FOREIGN KEY ("sku_id") REFERENCES "SKU"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "idempotency_records" ADD CONSTRAINT "idempotency_records_request_id_fkey" FOREIGN KEY ("request_id") REFERENCES "requests"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -200,7 +196,7 @@ ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_request_id_fkey" FOREIGN
 ALTER TABLE "ai_summaries" ADD CONSTRAINT "ai_summaries_request_id_fkey" FOREIGN KEY ("request_id") REFERENCES "requests"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ai_summaries" ADD CONSTRAINT "ai_summaries_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ai_summaries" ADD CONSTRAINT "ai_summaries_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ai_summaries" ADD CONSTRAINT "ai_summaries_creator_id_fkey" FOREIGN KEY ("creator_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

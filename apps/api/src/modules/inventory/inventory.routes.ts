@@ -8,14 +8,11 @@ import { AppError } from "../../middleware/errors";
 const router = Router();
 router.use(authenticate);
 
-router.get("/", async (req, res, next) => {
+router.get("/skus", async (req, res, next) => {
   try {
-    if (req.user!.role === "SOLICITANTE") {
-      throw new AppError(403, "No tienes permiso para consultar inventario", "FORBIDDEN");
-    }
-
+    const organizationId = req.user!.organizationId;
     const inventory = await prisma.inventory.findMany({
-      where: { organizationId: req.user!.organizationId },
+      where: { organizationId },
       include: { sku: true },
       orderBy: { sku: { code: "asc" } }
     });
@@ -23,10 +20,7 @@ router.get("/", async (req, res, next) => {
     res.json(inventory.map(item => ({
       skuId: item.skuId,
       code: item.sku.code,
-      name: item.sku.name,
-      physicalStock: item.physicalStock,
-      reservedStock: item.reservedStock,
-      available: item.physicalStock - item.reservedStock
+      quantity: item.quantity
     })));
   } catch (error) {
     next(error);
@@ -52,7 +46,6 @@ router.post("/requests/:id/reserve", async (req, res, next) => {
       .digest("hex");
 
     const result = await prisma.$transaction(async tx => {
-      // Búsqueda actualizada con la nueva llave compuesta [key, organizationId]
       const prior = await tx.idempotencyRecord.findUnique({
         where: {
           key_organizationId: {
@@ -86,32 +79,38 @@ router.post("/requests/:id/reserve", async (req, res, next) => {
         throw new AppError(409, "La solicitud no está ENVIADA", "INVALID_TRANSITION");
       }
 
+      // Validamos usando el campo 'quantity' con bloqueo de fila crudo
       for (const item of request.items) {
-        const rows = await tx.$queryRaw<Array<{ id: string; physicalStock: number; reservedStock: number }>>`
-          SELECT id, "physical_stock" as "physicalStock", "reserved_stock" as "reservedStock"
-          FROM "inventories"
-          WHERE "organization_id" = ${user.organizationId}::uuid
-            AND "sku_id" = ${item.skuId}::uuid
+        const rows = await tx.$queryRaw<Array<{ id: string; quantity: number }>>`
+          SELECT id, quantity
+          FROM "Inventory"
+          WHERE "organizationId" = ${user.organizationId}::uuid
+            AND "skuId" = ${item.skuId}::uuid
           FOR UPDATE
         `;
 
         const stock = rows[0];
 
-        if (!stock || stock.physicalStock - stock.reservedStock < item.quantity) {
+        if (!stock || stock.quantity < item.quantity) {
           throw new AppError(409, "Inventario insuficiente; no se reservó ninguna línea", "INSUFFICIENT_STOCK");
         }
       }
 
+      // Actualizamos restando la cantidad reservada del stock general (o ajustando según tu lógica de negocio con quantity)
       for (const item of request.items) {
-        await tx.inventory.update({
-          where: {
-            organizationId_skuId: {
-              organizationId: user.organizationId,
-              skuId: item.skuId
+        const rows = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM "Inventory"
+          WHERE "organizationId" = ${user.organizationId}::uuid AND "skuId" = ${item.skuId}::uuid
+        `;
+
+        if (rows[0]) {
+          await tx.inventory.update({
+            where: { id: rows[0].id },
+            data: { 
+              quantity: { decrement: item.quantity } 
             }
-          },
-          data: { reservedStock: { increment: item.quantity } }
-        });
+          });
+        }
       }
 
       await tx.request.update({

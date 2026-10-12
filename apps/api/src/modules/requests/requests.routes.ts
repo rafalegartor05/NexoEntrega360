@@ -101,9 +101,10 @@ router.post("/", async (req, res, next) => {
 
       const skus = await tx.sKU.findMany({
         where: {
-          id: { in: skuIds },
+          id: { 
+            in: skuIds 
+          },
           organizationId: user.organizationId,
-          active: true
         }
       });
 

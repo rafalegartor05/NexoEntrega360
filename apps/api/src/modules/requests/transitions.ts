@@ -1,4 +1,3 @@
-
 import { Router } from "express";
 import { prisma } from "../../db/prisma";
 import { authenticate, allowRoles } from "../../middleware/auth";
@@ -10,11 +9,12 @@ router.use(authenticate);
 router.post("/:id/dispatch", allowRoles("BODEGA"), async (req, res, next) => {
   try {
     const user = req.user!;
+    const requestId = String(req.params.id);
 
     await prisma.$transaction(async tx => {
       const request = await tx.request.findFirst({
         where: {
-          id: req.params.id,
+          id: requestId,
           organizationId: user.organizationId
         },
         include: { items: true }
@@ -66,7 +66,7 @@ router.post("/:id/dispatch", allowRoles("BODEGA"), async (req, res, next) => {
           userId: user.id,
           requestId: request.id,
           action: "SOLICITUD_DESPACHADA",
-          correlationId: String(res.locals.correlationId)
+          correlationId: String(res.locals.correlationId || "unknown")
         }
       });
     });
@@ -80,11 +80,12 @@ router.post("/:id/dispatch", allowRoles("BODEGA"), async (req, res, next) => {
 router.post("/:id/deliver", allowRoles("COORDINADOR"), async (req, res, next) => {
   try {
     const user = req.user!;
+    const requestId = String(req.params.id);
 
     const result = await prisma.$transaction(async tx => {
       const request = await tx.request.findFirst({
         where: {
-          id: req.params.id,
+          id: requestId,
           organizationId: user.organizationId
         }
       });
@@ -116,7 +117,7 @@ router.post("/:id/deliver", allowRoles("COORDINADOR"), async (req, res, next) =>
           userId: user.id,
           requestId: request.id,
           action: "SOLICITUD_ENTREGADA",
-          correlationId: String(res.locals.correlationId)
+          correlationId: String(res.locals.correlationId || "unknown")
         }
       });
 

@@ -29,17 +29,18 @@ enum RequestStatus {
 }
 
 model Organization {
-  id            String       @id @default(uuid()) @db.Uuid
-  name          String
-  code          String       @unique
-  skus          SKU[]
-  inventories   Inventory[]
-  requests      Request[]
-  users         User[]
-  auditEvents   AuditEvent[]
-  aiSummaries   AISummary[]
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@map("organizations")
+  // Relaciones
+  skus      SKU[]
+  inventory Inventory[]
+  users     User[]       // Si tu modelo de usuarios también está relacionado
+  requests  Request[]    // Si aplica a tus solicitudes
+  auditEvents  AuditEvent[]
+  aiSummaries  AISummary[]
 }
 
 model User {
@@ -61,33 +62,31 @@ model User {
 
 model SKU {
   id             String       @id @default(uuid()) @db.Uuid
-  code           String       @unique
+  code           String       
   name           String
   description    String?
-  organizationId String       @map("organization_id") @db.Uuid
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organizationId String       @db.Uuid
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  inventories    Inventory[]
+  inventory      Inventory[]
   requestItems   RequestItem[]
 
-  @@map("skus")
+  @@unique([organizationId, code]) 
 }
 
 model Inventory {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  skuId          String       @map("sku_id") @db.Uuid
-  physicalStock  Int          @default(0) @map("physical_stock")
-  reservedStock  Int          @default(0) @map("reserved_stock")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+  id              String       @id @default(uuid()) @db.Uuid
+  skuId           String       @db.Uuid
+  quantity        Int
+  organizationId  String       @db.Uuid
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  sku             SKU          @relation(fields: [skuId], references: [id])
+  organization    Organization @relation(fields: [organizationId], references: [id])
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  sku            SKU          @relation(fields: [skuId], references: [id], onDelete: Cascade)
-
-  @@unique([organizationId, skuId])
-  @@map("inventories")
+  @@unique([organizationId, skuId]) 
 }
 
 model Request {

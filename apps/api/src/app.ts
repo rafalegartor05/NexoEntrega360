@@ -1,4 +1,5 @@
 
+import { Router } from "express";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -7,7 +8,7 @@ import { correlationMiddleware } from "./middleware/correlations";
 import { errorHandler } from "./middleware/errors";
 
 import authRoutes from "./modules/auth/auth.routes";
-import requestRoutes from "./modules/requests/requests.routes";
+import requestsRoutes from "./modules/requests/requests.routes";
 import inventoryRoutes from "./modules/inventory/inventory.routes";
 import transitionRoutes from "./modules/requests/transitions";
 import auditRoutes from "./modules/audit/audit.routes";
@@ -45,9 +46,9 @@ app.get("/ready", async (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
-app.use("/api/requests", requestRoutes);
-app.use("/api/requests", transitionRoutes);
+app.use("/api/requests", requestsRoutes);
 app.use("/api/inventory", inventoryRoutes);
+app.use("/api/catalog", inventoryRoutes);
 app.use("/api/audit", auditRoutes);
 app.use("/api/ai", aiRoutes);
 
@@ -60,3 +61,5 @@ app.use((_req, res) => {
 });
 
 app.use(errorHandler);
+
+export default Router;
